@@ -14,6 +14,15 @@ What is Omni Core
 
 Omni Core is a fast, portable Omni Layer implementation that is based off the Bitcoin Core codebase (currently 0.13). This implementation requires no external dependencies extraneous to Bitcoin Core, and is native to the Bitcoin network just like other Bitcoin nodes. It currently supports a wallet mode and is seamlessly available on three platforms: Windows, Linux and Mac OS. Omni Layer extensions are exposed via the JSON-RPC interface. Development has been consolidated on the Omni Core product, and it is the reference client for the Omni Layer.
 
+![Omni Core send dialog](https://i.imgur.com/q2obBQC.png "A screenshot of sending tokens with Omni Core")
+
+Need help?
+----------
+
+* Check out guides and FAQs in the [Omni Core wiki](https://github.com/OmniLayer/omnicore/wiki).
+
+* Feel free to open a [GitHub issue](https://github.com/OmniLayer/omnicore/issues) to file a bug submission or ask any question.
+
 Disclaimer, warning
 -------------------
 This software is EXPERIMENTAL software. USE ON MAINNET AT YOUR OWN RISK.
@@ -96,21 +105,21 @@ The documentation for the RPC interface and command-line is located in [src/omni
 Current feature set:
 --------------------
 
-* Broadcasting of simple send (tx 0) [doc] (src/omnicore/doc/rpc-api.md#omni_send), and send to owners (tx 3) [doc] (src/omnicore/doc/rpc-api.md#omni_sendsto)
+* Broadcasting of simple send (tx 0) [doc](src/omnicore/doc/rpc-api.md#omni_send) and send to owners (tx 3) [doc](src/omnicore/doc/rpc-api.md#omni_sendsto)
 
-* Obtaining a Omni Layer balance [doc] (src/omnicore/doc/rpc-api.md#omni_getbalance)
+* Obtaining a Omni Layer balance [doc](src/omnicore/doc/rpc-api.md#omni_getbalance)
 
-* Obtaining all balances (including smart property) for an address [doc] (src/omnicore/doc/rpc-api.md#omni_getallbalancesforaddress)
+* Obtaining all balances (including smart property) for an address [doc](src/omnicore/doc/rpc-api.md#omni_getallbalancesforaddress)
 
-* Obtaining all balances associated with a specific smart property [doc] (src/omnicore/doc/rpc-api.md#omni_getallbalancesforid)
+* Obtaining all balances associated with a specific smart property [doc](src/omnicore/doc/rpc-api.md#omni_getallbalancesforid)
 
-* Retrieving information about any Omni Layer transaction [doc] (src/omnicore/doc/rpc-api.md#omni_gettransaction)
+* Retrieving information about any Omni Layer transaction [doc](src/omnicore/doc/rpc-api.md#omni_gettransaction)
 
-* Listing historical transactions of addresses in the wallet [doc] (src/omnicore/doc/rpc-api.md#omni_listtransactions)
+* Listing historical transactions of addresses in the wallet [doc](src/omnicore/doc/rpc-api.md#omni_listtransactions)
 
-* Retreiving detailed information about a smart property [doc] (src/omnicore/doc/rpc-api.md#omni_getproperty)
+* Retreiving detailed information about a smart property [doc](src/omnicore/doc/rpc-api.md#omni_getproperty)
 
-* Retreiving active and expired crowdsale information [doc] (src/omnicore/doc/rpc-api.md#omni_getcrowdsale)
+* Retreiving active and expired crowdsale information [doc](src/omnicore/doc/rpc-api.md#omni_getcrowdsale)
 
 * Sending a specific BTC amount to a receiver with referenceamount in `omni_send`
 
@@ -136,8 +145,3 @@ Related projects:
 * https://github.com/OmniLayer/omniwallet
 
 * https://github.com/OmniLayer/spec
-
-Support:
---------
-
-* Please open a [GitHub issue] (https://github.com/OmniLayer/omnicore/issues) to file a bug submission.
