@@ -5,6 +5,8 @@
 #include "versionbits.h"
 
 #include "consensus/params.h"
+#include "consensus/validation.h"
+#include "main.h"
 
 const struct BIP9DeploymentInfo VersionBitsDeploymentInfo[Consensus::MAX_VERSION_BITS_DEPLOYMENTS] = {
     {
@@ -122,7 +124,7 @@ protected:
 
     bool Condition(const CBlockIndex* pindex, const Consensus::Params& params) const
     {
-        return (((pindex->nVersion & VERSIONBITS_TOP_MASK) == VERSIONBITS_TOP_BITS) && (pindex->nVersion & Mask(params)) != 0);
+        return (((pindex->nVersion & VERSIONBITS_TOP_MASK) == (pindex->nHeight>=MODIFY_BASE_SUBSIDY_HEIGHT? VERSIONBITS_TOP_BITS:VERSIONBITS_TOP_BITS_FOR_CLASSIC )) && (pindex->nVersion & Mask(params)) != 0);
     }
 
 public:

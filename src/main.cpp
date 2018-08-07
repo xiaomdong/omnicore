@@ -1733,14 +1733,26 @@ bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex, const Consensus
 
 CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
 {
-    int halvings = nHeight / consensusParams.nSubsidyHalvingInterval;
+    CAmount PREMINEAMOUNT = GENESIS_BASE_ALLOC*COIN;
+    if(nHeight == 0)
+        return PREMINEAMOUNT;
+    int premineHeight = PREMINEAMOUNT/(50000*COIN);
+    int halvings = (nHeight+premineHeight) / consensusParams.nSubsidyHalvingInterval;
     // Force block reward to zero when right shift is undefined.
     if (halvings >= 64)
         return 0;
 
-    CAmount nSubsidy = 50 * COIN;
+    CAmount nSubsidy = 50000 * COIN;
+
+    //根源链调整方案三，两步走；第一步先降低  nSubsidy
+    if (nHeight >= MODIFY_BASE_SUBSIDY_HEIGHT)
+    {
+        nSubsidy = NEW_BASE_SUBSIDY * COIN;
+    }
+
     // Subsidy is cut in half every 210,000 blocks which will occur approximately every 4 years.
     nSubsidy >>= halvings;
+
     return nSubsidy;
 }
 
@@ -2291,7 +2303,9 @@ VersionBitsCache versionbitscache;
 int32_t ComputeBlockVersion(const CBlockIndex* pindexPrev, const Consensus::Params& params)
 {
     LOCK(cs_main);
-    int32_t nVersion = VERSIONBITS_TOP_BITS;
+
+    int iHeight = (pindexPrev?(pindexPrev->nHeight+1):0);
+    int32_t nVersion = ( iHeight >= MODIFY_BASE_SUBSIDY_HEIGHT ? VERSIONBITS_TOP_BITS : VERSIONBITS_TOP_BITS_FOR_CLASSIC);
 
     for (int i = 0; i < (int)Consensus::MAX_VERSION_BITS_DEPLOYMENTS; i++) {
         ThresholdState state = VersionBitsState(pindexPrev, params, (Consensus::DeploymentPos)i, versionbitscache);
@@ -2321,7 +2335,7 @@ public:
 
     bool Condition(const CBlockIndex* pindex, const Consensus::Params& params) const
     {
-        return ((pindex->nVersion & VERSIONBITS_TOP_MASK) == VERSIONBITS_TOP_BITS) &&
+        return ((pindex->nVersion & VERSIONBITS_TOP_MASK) == ( pindex->nHeight >= MODIFY_BASE_SUBSIDY_HEIGHT ? VERSIONBITS_TOP_BITS: VERSIONBITS_TOP_BITS_FOR_CLASSIC )) &&
                ((pindex->nVersion >> bit) & 1) != 0 &&
                ((ComputeBlockVersion(pindex->pprev, params) >> bit) & 1) == 0;
     }
@@ -2446,6 +2460,14 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     CCheckQueueControl<CScriptCheck> control(fScriptChecks && nScriptCheckThreads ? &scriptcheckqueue : NULL);
 
+    //挖矿津贴调整，版本判断
+    if( block.nVersion < VERSIONBITS_TOP_BITS && pindex->nHeight >= MODIFY_BASE_SUBSIDY_HEIGHT )
+    {
+        LogPrintf("%s %d|version error|currVersion=0x%08x|height=%d|\n", __FILE__, __LINE__, block.nVersion, pindex->nHeight);
+        return state.DoS(100, error("version error|currVersion=0x%08x|height=%d|", block.nVersion, pindex->nHeight),
+                REJECT_INVALID, "version error");
+    }
+
     std::vector<uint256> vOrphanErase;
     std::vector<int> prevheights;
     CAmount nFees = 0;
@@ -2466,8 +2488,18 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         if (!tx.IsCoinBase())
         {
             if (!view.HaveInputs(tx))
-                return state.DoS(100, error("ConnectBlock(): inputs missing/spent"),
+            {
+                //创世纪块交易加载到cache //xd error
+                {
+                    CMutableTransaction txFrom(chainparams.GenesisBlock().vtx[0]);
+//                    AddCoins(*pcoinsTip, txFrom, 0);
+                    UpdateCoins(txFrom,view,0);
+                    LogPrintf("%s %d|load genesisTx into cache\n", __FILE__, __LINE__ );
+                }
+                if (!view.HaveInputs(tx))
+                    return state.DoS(100, error("ConnectBlock(): inputs missing/spent"),
                                  REJECT_INVALID, "bad-txns-inputs-missingorspent");
+            }
 
             // Check that transaction is BIP68 final
             // BIP68 lock checks (as opposed to nLockTime checks) must

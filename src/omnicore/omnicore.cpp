@@ -86,11 +86,13 @@ using namespace mastercore;
 //! Global lock for state objects
 CCriticalSection cs_tally;
 
+
+//change 1EXoDusjGwvnjZUyKkxZ4UHEf77z6A5S4P to 1KiF3tMRbc34HvWhVZ2HrRAnu1A5SgYD6S
 //! Exodus address (changes based on network)
-static std::string exodus_address = "1EXoDusjGwvnjZUyKkxZ4UHEf77z6A5S4P";
+static std::string exodus_address = "1KiF3tMRbc34HvWhVZ2HrRAnu1A5SgYD6S";
 
 //! Mainnet Exodus address
-static const std::string exodus_mainnet = "1EXoDusjGwvnjZUyKkxZ4UHEf77z6A5S4P";
+static const std::string exodus_mainnet = "1KiF3tMRbc34HvWhVZ2HrRAnu1A5SgYD6S";
 //! Testnet Exodus address
 static const std::string exodus_testnet = "mpexoDuSkGGqvqrkrjiFng38QPkJQVFyqv";
 //! Testnet Exodus crowdsale address
@@ -530,7 +532,7 @@ bool mastercore::update_tally_map(const std::string& who, uint32_t propertyId, i
 static int64_t calculate_and_update_devmsc(unsigned int nTime, int block)
 {
     // do nothing if before end of fundraiser
-    if (nTime < 1377993874) return 0;
+    if (nTime < 1535684308) return 0;
 
     // taken mainly from msc_validate.py: def get_available_reward(height, c)
     int64_t devmsc = 0;
@@ -538,7 +540,7 @@ static int64_t calculate_and_update_devmsc(unsigned int nTime, int block)
     // spec constants:
     const int64_t all_reward = 5631623576222;
     const double seconds_in_one_year = 31556926;
-    const double seconds_passed = nTime - 1377993874; // exodus bootstrap deadline
+    const double seconds_passed = nTime - 1535684308; // exodus bootstrap deadline
     const double years = seconds_passed / seconds_in_one_year;
     const double part_available = 1 - pow(0.5, years);
     const double available_reward = all_reward * part_available;
@@ -673,14 +675,15 @@ int mastercore::GetEncodingClass(const CTransaction& tx, int nBlock)
      * Perform a string comparison on hex for each scriptPubKey & look directly for Exodus hash160 bytes or omni marker bytes
      * This allows to drop non-Omni transactions with less work
      */
-    std::string strClassC = "6f6d6e69";
-    std::string strClassAB = "76a914946cb2e08075bcbaf157e47bcb67eb2b2339d24288ac";
+    std::string strClassC = "6f6d6e69";  //omni string
+//    std::string strClassAB = "76a914946cb2e08075bcbaf157e47bcb67eb2b2339d24288ac";  // this is 1EXoDusjGwvnjZUyKkxZ4UHEf77z6A5S4P scriptPubKey
+    std::string strClassAB = "76a914cd3f0bf33df980c37951bd4a4ec7ba55d91c9db188ac"; //change to 1KiF3tMRbc34HvWhVZ2HrRAnu1A5SgYD6S scriptPubKey
     bool examineClosely = false;
     for (unsigned int n = 0; n < tx.vout.size(); ++n) {
         const CTxOut& output = tx.vout[n];
         std::string strSPB = HexStr(output.scriptPubKey.begin(), output.scriptPubKey.end());
         if (strSPB != strClassAB) { // not an exodus marker
-            if (nBlock < 395000) { // class C not enabled yet, no need to search for marker bytes
+            if (nBlock < 100) { // class C not enabled yet, no need to search for marker bytes
                 continue;
             } else {
                 if (strSPB.find(strClassC) != std::string::npos) {
