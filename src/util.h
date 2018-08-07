@@ -211,7 +211,7 @@ std::string HelpMessageOpt(const std::string& option, const std::string& message
  * when boost is newer than 1.56.
  */
 int GetNumCores();
-
+void SetThreadPriority(int nPriority);
 void RenameThread(const char* name);
 
 /**

@@ -1340,6 +1340,13 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 pcoinscatcher = new CCoinsViewErrorCatcher(pcoinsdbview);
                 pcoinsTip = new CCoinsViewCache(pcoinscatcher);
 
+                //将创世纪块的交易加载交易缓存mempool中, 使相关交易能消费  //xd error
+                {
+                    CMutableTransaction txFrom(chainparams.GenesisBlock().vtx[0]);
+//                    AddCoins(*pcoinsTip, txFrom, 0);
+                    UpdateCoins(txFrom,*pcoinsTip,0);
+                }
+
                 if (fReindex) {
                     pblocktree->WriteReindexing(true);
                     //If we're reindexing in prune mode, wipe away unusable block files and all undo data files
