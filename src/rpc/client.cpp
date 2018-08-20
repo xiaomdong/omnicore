@@ -136,6 +136,8 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "omni_getfeedistribution", 0 },
     { "omni_getfeedistributions", 0 },
     { "omni_getbalanceshash", 0 },
+    { "omni_getwalletbalances", 0 },
+    { "omni_getwalletaddressbalances", 0 },
 
     /* Omni Core - transaction calls */
     { "omni_send", 2 },
@@ -181,10 +183,8 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "omni_sendactivation", 3 },
     { "omni_sendalert", 1 },
     { "omni_sendalert", 2 },
-    { "omni_createfunded_send", 2 },
-    { "omni_createfunded_send", 5 },
-    { "omni_createfunded_sweep", 2 },
-    { "omni_createfunded_sweep", 4 },
+    { "omni_funded_send", 2 },
+    { "omni_funded_sendall", 2 },
 
     /* Omni Core - raw transaction calls */
     { "omni_decodetransaction", 1 },
