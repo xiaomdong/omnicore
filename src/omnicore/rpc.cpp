@@ -36,6 +36,7 @@
 #include "omnicore/walletutils.h"
 
 #include "amount.h"
+#include "base58.h"
 #include "chainparams.h"
 #include "init.h"
 #include "main.h"
@@ -56,6 +57,7 @@
 #include <map>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 
 using std::runtime_error;
 using namespace mastercore;
@@ -132,30 +134,21 @@ void MetaDexObjectsToJSON(std::vector<CMPMetaDEx>& vMetaDexObjs, UniValue& respo
 bool BalanceToJSON(const std::string& address, uint32_t property, UniValue& balance_obj, bool divisible)
 {
     // confirmed balance minus unconfirmed, spent amounts
-    int64_t nAvailable = getUserAvailableMPbalance(address, property);
-
-    int64_t nReserved = 0;
-    nReserved += getMPbalance(address, property, ACCEPT_RESERVE);
-    nReserved += getMPbalance(address, property, METADEX_RESERVE);
-    nReserved += getMPbalance(address, property, SELLOFFER_RESERVE);
-
-    int64_t nFrozen = getUserFrozenMPbalance(address, property);
+    int64_t nAvailable = GetAvailableTokenBalance(address, property);
+    int64_t nReserved = GetReservedTokenBalance(address, property);
+    int64_t nFrozen = GetFrozenTokenBalance(address, property);
 
     if (divisible) {
         balance_obj.push_back(Pair("balance", FormatDivisibleMP(nAvailable)));
         balance_obj.push_back(Pair("reserved", FormatDivisibleMP(nReserved)));
-        if (nFrozen != 0) balance_obj.push_back(Pair("frozen", FormatDivisibleMP(nFrozen)));
+        balance_obj.push_back(Pair("frozen", FormatDivisibleMP(nFrozen)));
     } else {
         balance_obj.push_back(Pair("balance", FormatIndivisibleMP(nAvailable)));
         balance_obj.push_back(Pair("reserved", FormatIndivisibleMP(nReserved)));
-        if (nFrozen != 0) balance_obj.push_back(Pair("frozen", FormatIndivisibleMP(nFrozen)));
+        balance_obj.push_back(Pair("frozen", FormatIndivisibleMP(nFrozen)));
     }
 
-    if (nAvailable == 0 && nReserved == 0) {
-        return false;
-    } else {
-        return true;
-    }
+    return (nAvailable || nReserved || nFrozen);
 }
 
 // Obtains details of a fee distribution
@@ -764,6 +757,7 @@ UniValue omni_getbalance(const UniValue& params, bool fHelp)
             "{\n"
             "  \"balance\" : \"n.nnnnnnnn\",   (string) the available balance of the address\n"
             "  \"reserved\" : \"n.nnnnnnnn\"   (string) the amount reserved by sell offers and accepts\n"
+            "  \"frozen\" : \"n.nnnnnnnn\"     (string) the amount frozen by the issuer (applies to managed properties only)\n"
             "}\n"
             "\nExamples:\n"
             + HelpExampleCli("omni_getbalance", "\"1EXoDusjGwvnjZUyKkxZ4UHEf77z6A5S4P\" 1")
@@ -795,6 +789,7 @@ UniValue omni_getallbalancesforid(const UniValue& params, bool fHelp)
             "    \"address\" : \"address\",      (string) the address\n"
             "    \"balance\" : \"n.nnnnnnnn\",   (string) the available balance of the address\n"
             "    \"reserved\" : \"n.nnnnnnnn\"   (string) the amount reserved by sell offers and accepts\n"
+            "    \"frozen\" : \"n.nnnnnnnn\"     (string) the amount frozen by the issuer (applies to managed properties only)\n"
             "  },\n"
             "  ...\n"
             "]\n"
@@ -850,8 +845,10 @@ UniValue omni_getallbalancesforaddress(const UniValue& params, bool fHelp)
             "[                           (array of JSON objects)\n"
             "  {\n"
             "    \"propertyid\" : n,           (number) the property identifier\n"
+            "    \"name\" : \"name\",            (string) the name of the property\n"
             "    \"balance\" : \"n.nnnnnnnn\",   (string) the available balance of the address\n"
             "    \"reserved\" : \"n.nnnnnnnn\"   (string) the amount reserved by sell offers and accepts\n"
+            "    \"frozen\" : \"n.nnnnnnnn\"     (string) the amount frozen by the issuer (applies to managed properties only)\n"
             "  },\n"
             "  ...\n"
             "]\n"
@@ -876,14 +873,234 @@ UniValue omni_getallbalancesforaddress(const UniValue& params, bool fHelp)
 
     uint32_t propertyId = 0;
     while (0 != (propertyId = addressTally->next())) {
+        CMPSPInfo::Entry property;
+        if (!_my_sps->getSP(propertyId, property)) {
+            continue;
+        }
+
         UniValue balanceObj(UniValue::VOBJ);
         balanceObj.push_back(Pair("propertyid", (uint64_t) propertyId));
-        bool nonEmptyBalance = BalanceToJSON(address, propertyId, balanceObj, isPropertyDivisible(propertyId));
+        balanceObj.push_back(Pair("name", property.name));
+
+        bool nonEmptyBalance = BalanceToJSON(address, propertyId, balanceObj, property.isDivisible());
 
         if (nonEmptyBalance) {
             response.push_back(balanceObj);
         }
     }
+
+    return response;
+}
+
+/** Returns all addresses that may be mine. */
+static std::set<std::string> getWalletAddresses(bool fIncludeWatchOnly)
+{
+    std::set<std::string> result;
+
+#ifdef ENABLE_WALLET
+    LOCK(pwalletMain->cs_wallet);
+
+    BOOST_FOREACH(const PAIRTYPE(CTxDestination, CAddressBookData)& item, pwalletMain->mapAddressBook) {
+        const CBitcoinAddress& address = item.first;
+        isminetype iIsMine = IsMine(*pwalletMain, address.Get());
+
+        if (iIsMine == ISMINE_SPENDABLE || (fIncludeWatchOnly && iIsMine != ISMINE_NO)) {
+            result.insert(address.ToString());
+        }
+    }
+#endif
+
+    return result;
+}
+
+UniValue omni_getwalletbalances(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() > 1)
+        throw runtime_error(
+            "omni_getwalletbalances ( includewatchonly )\n"
+            "\nReturns a list of the total token balances of the whole wallet.\n"
+            "\nArguments:\n"
+            "1. includewatchonly     (boolean, optional) include balances of watchonly addresses (default: false)\n"
+            "\nResult:\n"
+            "[                           (array of JSON objects)\n"
+            "  {\n"
+            "    \"propertyid\" : n,         (number) the property identifier\n"
+            "    \"name\" : \"name\",            (string) the name of the token\n"
+            "    \"balance\" : \"n.nnnnnnnn\",   (string) the total available balance for the token\n"
+            "    \"reserved\" : \"n.nnnnnnnn\"   (string) the total amount reserved by sell offers and accepts\n"
+            "    \"frozen\" : \"n.nnnnnnnn\"     (string) the total amount frozen by the issuer (applies to managed properties only)\n"
+            "  },\n"
+            "  ...\n"
+            "]\n"
+            "\nExamples:\n"
+            + HelpExampleCli("omni_getwalletbalances", "")
+            + HelpExampleRpc("omni_getwalletbalances", "")
+        );
+
+    bool fIncludeWatchOnly = false;
+    if (params.size() > 0) {
+        fIncludeWatchOnly = params[0].get_bool();
+    }
+
+    UniValue response(UniValue::VARR);
+
+#ifdef ENABLE_WALLET
+    if (!pwalletMain) {
+        return response;
+    }
+
+    std::set<std::string> addresses = getWalletAddresses(fIncludeWatchOnly);
+    std::map<uint32_t, std::tuple<int64_t, int64_t, int64_t>> balances;
+
+    LOCK(cs_tally);
+    BOOST_FOREACH(const std::string& address, addresses) {
+        CMPTally* addressTally = getTally(address);
+        if (NULL == addressTally) {
+            continue; // address doesn't have tokens
+        }
+
+        uint32_t propertyId = 0;
+        addressTally->init();
+
+        while (0 != (propertyId = addressTally->next())) {
+            int64_t nAvailable = GetAvailableTokenBalance(address, propertyId);
+            int64_t nReserved = GetReservedTokenBalance(address, propertyId);
+            int64_t nFrozen = GetFrozenTokenBalance(address, propertyId);
+
+            if (!nAvailable && !nReserved && !nFrozen) {
+                continue;
+            }
+
+            std::tuple<int64_t, int64_t, int64_t> currentBalance{0, 0, 0};
+            if (balances.find(propertyId) != balances.end()) {
+                currentBalance = balances[propertyId];
+            }
+
+            currentBalance = std::make_tuple(
+                    std::get<0>(currentBalance) + nAvailable,
+                    std::get<1>(currentBalance) + nReserved,
+                    std::get<2>(currentBalance) + nFrozen
+            );
+
+            balances[propertyId] = currentBalance;
+        }
+    }
+
+    for (auto const& item : balances) {
+        uint32_t propertyId = item.first;
+        std::tuple<int64_t, int64_t, int64_t> balance = item.second;
+
+        CMPSPInfo::Entry property;
+        if (!_my_sps->getSP(propertyId, property)) {
+            continue; // token wasn't found in the DB
+        }
+
+        int64_t nAvailable = std::get<0>(balance);
+        int64_t nReserved = std::get<1>(balance);
+        int64_t nFrozen = std::get<2>(balance);
+
+        UniValue objBalance(UniValue::VOBJ);
+        objBalance.push_back(Pair("propertyid", (uint64_t) propertyId));
+        objBalance.push_back(Pair("name", property.name));
+
+        if (property.isDivisible()) {
+            objBalance.push_back(Pair("balance", FormatDivisibleMP(nAvailable)));
+            objBalance.push_back(Pair("reserved", FormatDivisibleMP(nReserved)));
+            objBalance.push_back(Pair("frozen", FormatDivisibleMP(nFrozen)));
+        } else {
+            objBalance.push_back(Pair("balance", FormatIndivisibleMP(nAvailable)));
+            objBalance.push_back(Pair("reserved", FormatIndivisibleMP(nReserved)));
+            objBalance.push_back(Pair("frozen", FormatIndivisibleMP(nFrozen)));
+        }
+
+        response.push_back(objBalance);
+    }
+#endif
+
+    return response;
+}
+
+UniValue omni_getwalletaddressbalances(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() > 1)
+        throw runtime_error(
+            "omni_getwalletaddressbalances ( includewatchonly )\n"
+            "\nReturns a list of all token balances for every wallet address.\n"
+            "\nArguments:\n"
+            "1. includewatchonly     (boolean, optional) include balances of watchonly addresses (default: false)\n"
+            "\nResult:\n"
+            "[                           (array of JSON objects)\n"
+            "  {\n"
+            "    \"address\" : \"address\",      (string) the address linked to the following balances\n"
+            "    \"balances\" :\n"
+            "    [\n"
+            "      {\n"
+            "        \"propertyid\" : n,         (number) the property identifier\n"
+            "        \"name\" : \"name\",            (string) the name of the token\n"
+            "        \"balance\" : \"n.nnnnnnnn\",   (string) the available balance for the token\n"
+            "        \"reserved\" : \"n.nnnnnnnn\"   (string) the amount reserved by sell offers and accepts\n"
+            "        \"frozen\" : \"n.nnnnnnnn\"     (string) the amount frozen by the issuer (applies to managed properties only)\n"
+            "      },\n"
+            "      ...\n"
+            "    ]\n"
+            "  },\n"
+            "  ...\n"
+            "]\n"
+            "\nExamples:\n"
+            + HelpExampleCli("omni_getwalletaddressbalances", "")
+            + HelpExampleRpc("omni_getwalletaddressbalances", "")
+        );
+
+    bool fIncludeWatchOnly = false;
+    if (params.size() > 0) {
+        fIncludeWatchOnly = params[0].get_bool();
+    }
+
+    UniValue response(UniValue::VARR);
+
+#ifdef ENABLE_WALLET
+    if (!pwalletMain) {
+        return response;
+    }
+
+    std::set<std::string> addresses = getWalletAddresses(fIncludeWatchOnly);
+
+    LOCK(cs_tally);
+    BOOST_FOREACH(const std::string& address, addresses) {
+        CMPTally* addressTally = getTally(address);
+        if (NULL == addressTally) {
+            continue; // address doesn't have tokens
+        }
+
+        UniValue arrBalances(UniValue::VARR);
+        uint32_t propertyId = 0;
+        addressTally->init();
+
+        while (0 != (propertyId = addressTally->next())) {
+            CMPSPInfo::Entry property;
+            if (!_my_sps->getSP(propertyId, property)) {
+                continue; // token wasn't found in the DB
+            }
+
+            UniValue objBalance(UniValue::VOBJ);
+            objBalance.push_back(Pair("propertyid", (uint64_t) propertyId));
+            objBalance.push_back(Pair("name", property.name));
+
+            bool nonEmptyBalance = BalanceToJSON(address, propertyId, objBalance, property.isDivisible());
+
+            if (nonEmptyBalance) {
+                arrBalances.push_back(objBalance);
+            }
+        }
+
+        if (arrBalances.size() > 0) {
+            UniValue objEntry(UniValue::VOBJ);
+            objEntry.push_back(Pair("address", address));
+            objEntry.push_back(Pair("balances", arrBalances));
+            response.push_back(objEntry);
+        }
+    }
+#endif
 
     return response;
 }
@@ -1565,8 +1782,8 @@ UniValue omni_getactivedexsells(const UniValue& params, bool fHelp)
         uint8_t timeLimit = selloffer.getBlockTimeLimit();
         int64_t sellOfferAmount = selloffer.getOfferAmountOriginal(); //badly named - "Original" implies off the wire, but is amended amount
         int64_t sellBitcoinDesired = selloffer.getBTCDesiredOriginal(); //badly named - "Original" implies off the wire, but is amended amount
-        int64_t amountAvailable = getMPbalance(seller, propertyId, SELLOFFER_RESERVE);
-        int64_t amountAccepted = getMPbalance(seller, propertyId, ACCEPT_RESERVE);
+        int64_t amountAvailable = GetTokenBalance(seller, propertyId, SELLOFFER_RESERVE);
+        int64_t amountAccepted = GetTokenBalance(seller, propertyId, ACCEPT_RESERVE);
 
         // TODO: no math, and especially no rounding here (!)
         // TODO: no math, and especially no rounding here (!)
@@ -1725,7 +1942,7 @@ UniValue omni_listtransactions(const UniValue& params, bool fHelp)
             "2. count                (number, optional) show at most n transactions (default: 10)\n"
             "3. skip                 (number, optional) skip the first n transactions (default: 0)\n"
             "4. startblock           (number, optional) first block to begin the search (default: 0)\n"
-            "5. endblock             (number, optional) last block to include in the search (default: 999999)\n"
+            "5. endblock             (number, optional) last block to include in the search (default: 999999999)\n"
             "\nResult:\n"
             "[                                 (array of JSON objects)\n"
             "  {\n"
@@ -2247,6 +2464,8 @@ static const CRPCCommand commands[] =
     { "omni layer (data retrieval)", "omni_listtransactions",          &omni_listtransactions,           false },
     { "omni layer (data retrieval)", "omni_getfeeshare",               &omni_getfeeshare,                false },
     { "omni layer (configuration)",  "omni_setautocommit",             &omni_setautocommit,              true  },
+    { "omni layer (data retrieval)", "omni_getwalletbalances",         &omni_getwalletbalances,          false },
+    { "omni layer (data retrieval)", "omni_getwalletaddressbalances",  &omni_getwalletaddressbalances,   false },
 #endif
     { "hidden",                      "mscrpc",                         &mscrpc,                          true  },
 
