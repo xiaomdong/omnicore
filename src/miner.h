@@ -13,6 +13,7 @@
 #include <memory>
 #include "boost/multi_index_container.hpp"
 #include "boost/multi_index/ordered_index.hpp"
+#include "wallet/wallet.h"
 
 class CBlockIndex;
 class CChainParams;
@@ -21,6 +22,8 @@ class CScript;
 class CWallet;
 
 namespace Consensus { struct Params; };
+static const bool DEFAULT_GENERATE = false;
+static const int DEFAULT_GENERATE_THREADS = 1;
 
 static const bool DEFAULT_PRINTPRIORITY = false;
 
@@ -208,5 +211,8 @@ private:
 /** Modify the extranonce in a block */
 void IncrementExtraNonce(CBlock* pblock, const CBlockIndex* pindexPrev, unsigned int& nExtraNonce);
 int64_t UpdateTime(CBlockHeader* pblock, const Consensus::Params& consensusParams, const CBlockIndex* pindexPrev);
+/** Run the miner threads */
+void GenerateNewcoins(bool fGenerate, int nThreads, const CChainParams& chainparams);
+//CBlockTemplate* CreateNewBlockWithKey(CReserveKey& reservekey);
 
 #endif // BITCOIN_MINER_H

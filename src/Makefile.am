@@ -246,8 +246,8 @@ crypto_libbitcoin_crypto_a_SOURCES = \
   crypto/sha512.h
 
 # consensus: shared between all executables that validate any consensus rules.
-libbitcoin_consensus_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
-libbitcoin_consensus_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+libbitcoin_consensus_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(PIC_FLAGS)
+libbitcoin_consensus_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS) $(PIC_FLAGS)
 libbitcoin_consensus_a_SOURCES = \
   amount.h \
   arith_uint256.cpp \
@@ -278,7 +278,16 @@ libbitcoin_consensus_a_SOURCES = \
   uint256.h \
   utilstrencodings.cpp \
   utilstrencodings.h \
-  version.h
+  version.h\
+  crypto/Lyra2Z/Lyra2.h \
+  crypto/Lyra2Z/Lyra2.c \
+  crypto/Lyra2Z/Lyra2Z.h \
+  crypto/Lyra2Z/Lyra2Z.c \
+  crypto/Lyra2Z/blake.c \
+  crypto/Lyra2Z/sph_blake.h \
+  crypto/Lyra2Z/sph_types.h \
+  crypto/Lyra2Z/Sponge.c \
+  crypto/Lyra2Z/Sponge.h
 
 # common: shared between bitcoind, and bitcoin-qt and non-server tools
 libbitcoin_common_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)

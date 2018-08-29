@@ -9,10 +9,17 @@
 #include "tinyformat.h"
 #include "utilstrencodings.h"
 #include "crypto/common.h"
+#include "crypto/Lyra2Z/Lyra2Z.h"
+#include "crypto/Lyra2Z/Lyra2.h"
 
 uint256 CBlockHeader::GetHash() const
 {
-    return SerializeHash(*this);
+
+    uint256 powHash;
+
+    lyra2z_hash(BEGIN(nVersion), BEGIN(powHash));
+
+    return powHash;
 }
 
 std::string CBlock::ToString() const
