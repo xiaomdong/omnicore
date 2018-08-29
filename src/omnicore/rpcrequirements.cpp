@@ -1,5 +1,6 @@
 #include "omnicore/rpcrequirements.h"
 
+#include "omnicore/dbspinfo.h"
 #include "omnicore/dex.h"
 #include "omnicore/omnicore.h"
 #include "omnicore/sp.h"
@@ -16,11 +17,11 @@
 
 void RequireBalance(const std::string& address, uint32_t propertyId, int64_t amount)
 {
-    int64_t balance = getMPbalance(address, propertyId, BALANCE);
+    int64_t balance = GetTokenBalance(address, propertyId, BALANCE);
     if (balance < amount) {
         throw JSONRPCError(RPC_TYPE_ERROR, "Sender has insufficient balance");
     }
-    int64_t balanceUnconfirmed = getUserAvailableMPbalance(address, propertyId);
+    int64_t balanceUnconfirmed = GetAvailableTokenBalance(address, propertyId);
     if (balanceUnconfirmed < amount) {
         throw JSONRPCError(RPC_TYPE_ERROR, "Sender has insufficient balance (due to pending transactions)");
     }
