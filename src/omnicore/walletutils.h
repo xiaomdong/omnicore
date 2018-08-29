@@ -1,5 +1,5 @@
-#ifndef OMNICORE_WALLETTXS_H
-#define OMNICORE_WALLETTXS_H
+#ifndef OMNICORE_WALLETUTILS_H
+#define OMNICORE_WALLETUTILS_H
 
 class CCoinControl;
 class CPubKey;
@@ -28,6 +28,9 @@ int IsMyAddress(const std::string& address);
 
 /** Selects spendable outputs to create a transaction. */
 int64_t SelectCoins(const std::string& fromAddress, CCoinControl& coinControl, int64_t additional = 0);
+
+/** Selects all spendable outputs to create a transaction. */
+int64_t SelectAllCoins(const std::string& fromAddress, CCoinControl& coinControl);
 }
 
-#endif // OMNICORE_WALLETTXS_H
+#endif // OMNICORE_WALLETUTILS_H

@@ -6,17 +6,23 @@
 
 #include "omnicore/rpctxobject.h"
 
+#include "omnicore/dbspinfo.h"
+#include "omnicore/dbstolist.h"
+#include "omnicore/dbtradelist.h"
+#include "omnicore/dbtransaction.h"
+#include "omnicore/dbtxlist.h"
 #include "omnicore/dex.h"
 #include "omnicore/errors.h"
 #include "omnicore/mdex.h"
 #include "omnicore/omnicore.h"
+#include "omnicore/parsing.h"
 #include "omnicore/pending.h"
 #include "omnicore/rpctxobject.h"
 #include "omnicore/sp.h"
 #include "omnicore/sto.h"
 #include "omnicore/tx.h"
 #include "omnicore/utilsbitcoin.h"
-#include "omnicore/wallettxs.h"
+#include "omnicore/walletutils.h"
 
 #include "chainparams.h"
 #include "main.h"
@@ -117,7 +123,7 @@ int populateRPCTransactionObject(const CTransaction& tx, const uint256& blockHas
     bool valid = false;
     if (confirmations > 0) {
         LOCK(cs_tally);
-        valid = getValidMPTX(txid);
+        valid = p_txlistdb->getValidMPTX(txid);
         positionInBlock = p_OmniTXDB->FetchTransactionPosition(txid);
     }
 
@@ -212,6 +218,18 @@ void populateRPCTypeInfo(CMPTransaction& mp_obj, UniValue& txobj, uint32_t txTyp
         case MSC_TYPE_CHANGE_ISSUER_ADDRESS:
             populateRPCTypeChangeIssuer(mp_obj, txobj);
             break;
+        case MSC_TYPE_ENABLE_FREEZING:
+            populateRPCTypeEnableFreezing(mp_obj, txobj);
+            break;
+        case MSC_TYPE_DISABLE_FREEZING:
+            populateRPCTypeDisableFreezing(mp_obj, txobj);
+            break;
+        case MSC_TYPE_FREEZE_PROPERTY_TOKENS:
+            populateRPCTypeFreezeTokens(mp_obj, txobj);
+            break;
+        case MSC_TYPE_UNFREEZE_PROPERTY_TOKENS:
+            populateRPCTypeUnfreezeTokens(mp_obj, txobj);
+            break;
         case OMNICORE_MESSAGE_TYPE_ACTIVATION:
             populateRPCTypeActivation(mp_obj, txobj);
             break;
@@ -239,6 +257,10 @@ bool showRefForTx(uint32_t txType)
         case MSC_TYPE_REVOKE_PROPERTY_TOKENS: return false;
         case MSC_TYPE_CHANGE_ISSUER_ADDRESS: return true;
         case MSC_TYPE_SEND_ALL: return true;
+        case MSC_TYPE_ENABLE_FREEZING: return false;
+        case MSC_TYPE_DISABLE_FREEZING: return false;
+        case MSC_TYPE_FREEZE_PROPERTY_TOKENS: return true;
+        case MSC_TYPE_UNFREEZE_PROPERTY_TOKENS: return true;
         case OMNICORE_MESSAGE_TYPE_ACTIVATION: return false;
     }
     return true; // default to true, shouldn't be needed but just in case
@@ -314,7 +336,7 @@ void populateRPCTypeTradeOffer(CMPTransaction& omniObj, UniValue& txobj)
         unsigned int tmptype = 0;
         uint64_t amountNew = 0;
         LOCK(cs_tally);
-        bool tmpValid = getValidMPTX(omniObj.getHash(), &tmpblock, &tmptype, &amountNew);
+        bool tmpValid = p_txlistdb->getValidMPTX(omniObj.getHash(), &tmpblock, &tmptype, &amountNew);
         if (tmpValid && amountNew > 0) {
             amountDesired = calculateDesiredBTC(amountOffered, amountDesired, amountNew);
             amountOffered = amountNew;
@@ -399,7 +421,7 @@ void populateRPCTypeAcceptOffer(CMPTransaction& omniObj, UniValue& txobj)
     uint64_t amountNew = 0;
 
     LOCK(cs_tally);
-    bool tmpValid = getValidMPTX(omniObj.getHash(), &tmpblock, &tmptype, &amountNew);
+    bool tmpValid = p_txlistdb->getValidMPTX(omniObj.getHash(), &tmpblock, &tmptype, &amountNew);
     if (tmpValid && amountNew > 0) amount = amountNew;
 
     txobj.push_back(Pair("propertyid", (uint64_t)propertyId));
@@ -511,6 +533,25 @@ void populateRPCTypeActivation(CMPTransaction& omniObj, UniValue& txobj)
     txobj.push_back(Pair("featureid", (uint64_t) omniObj.getFeatureId()));
     txobj.push_back(Pair("activationblock", (uint64_t) omniObj.getActivationBlock()));
     txobj.push_back(Pair("minimumversion", (uint64_t) omniObj.getMinClientVersion()));
+}
+
+void populateRPCTypeEnableFreezing(CMPTransaction& omniObj, UniValue& txobj)
+{
+    txobj.push_back(Pair("propertyid", (uint64_t) omniObj.getProperty()));
+}
+
+void populateRPCTypeDisableFreezing(CMPTransaction& omniObj, UniValue& txobj)
+{
+    txobj.push_back(Pair("propertyid", (uint64_t) omniObj.getProperty()));
+}
+void populateRPCTypeFreezeTokens(CMPTransaction& omniObj, UniValue& txobj)
+{
+    txobj.push_back(Pair("propertyid", (uint64_t) omniObj.getProperty()));
+}
+
+void populateRPCTypeUnfreezeTokens(CMPTransaction& omniObj, UniValue& txobj)
+{
+    txobj.push_back(Pair("propertyid", (uint64_t) omniObj.getProperty()));
 }
 
 void populateRPCExtendedTypeSendToOwners(const uint256 txid, std::string extendedDetailsFilter, UniValue& txobj, uint16_t version)
