@@ -17,6 +17,7 @@
 #include "httpserver.h"
 #include "httprpc.h"
 #include "utilstrencodings.h"
+#include "chainparams.h"
 
 #include "omnicore/utilsui.h"
 
